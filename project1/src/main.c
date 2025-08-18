@@ -1,11 +1,11 @@
 // main.c
 #include <stdint.h>
 #include "sysclocks.h"
-#define GPIOD_BASE    0x40020C00
-#define GPIOD_MODER   (*(volatile uint32_t *)(GPIOD_BASE + 0x00))
-#define GPIOD_ODR     (*(volatile uint32_t *)(GPIOD_BASE + 0x14))
-extern uint32_t SystemCoreClock;
+#include "usbfs.h"
+#include "gpio.h"
 
+extern uint32_t SystemCoreClock;
+extern void GPIOConfig(void);
 static inline void delay_ms(uint32_t ms) {
     uint32_t cycles = (SystemCoreClock / 3000) * ms;
     __asm__ volatile (
@@ -23,14 +23,11 @@ int main(void) {
     SystemClockConfig();
     // config MCO
     Config_MCO();
-    // Enable clock for GPIOD
-    RCC_AHB1ENR |= RCC_AHB1ENR_GPIOD_EN;
-    // Set PD12 as output (10)
-    GPIOD_MODER |= (1 << 26);
-    GPIOD_MODER &= ~(1 <<27);
+    GPIOConfig();
+    GPIOx_Set_MODER(&GPIOD_MODER,14);
     for(;;) {
         // Toggle PD12
-        GPIOD_ODR ^= (1 << 13);
+        GPIOx_Toggle(&GPIOD_ODR,14);
         delay_ms(1000);
     }
 }

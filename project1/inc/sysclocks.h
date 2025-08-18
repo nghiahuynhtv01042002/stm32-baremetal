@@ -37,26 +37,16 @@
 #define RCC_MCO2PRE   (0x06 << 27) // MCO2 prescaler
 
 // GPIO enable bits
-#define RCC_AHB1ENR_GPIOD_EN (1 << 3)
 #define RCC_AHB1ENR_GPIOA_EN (1 << 0)
 #define RCC_AHB1ENR_GPIOC_EN (1 << 2)
+#define RCC_AHB1ENR_GPIOD_EN (1 << 3)
 
 // FLASH configuration
 #define FLASH_BASE    (0x40023C00)
 #define FLASH_ACR     (*(volatile uint32_t *)(FLASH_BASE + 0x00))
 #define FLASH_ACR_LATENCY_3WS (0x03) 
-
-// GPIOA configuration
-#define GPIOA_BASE (0x40020000)
-#define GPIOA_MODER (*(volatile uint32_t *)(GPIOA_BASE + 0x00))
-#define GPIOA_AFRH (*(volatile uint32_t *)(GPIOA_BASE + 0x24))
-// GPIOC configuration
-#define GPIOC_BASE (0x40020800)
-#define GPIOC_MODER (*(volatile uint32_t *)(GPIOC_BASE + 0x00))
-#define GPIOC_AFRH (*(volatile uint32_t *)(GPIOC_BASE + 0x24))
-
 extern uint32_t SystemCoreClock;
 extern void SystemClockConfig(void);
 extern void Config_MCO(void);
 extern void SystemCoreClockUpdate(void);
-#endif
+#endif /* SYS_CLOCKS_H */
