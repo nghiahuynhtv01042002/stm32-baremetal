@@ -7,7 +7,10 @@
 #define RCC_CR        (*(volatile uint32_t *)(RCC_BASE + 0x00))
 #define RCC_PLLCFGR   (*(volatile uint32_t *)(RCC_BASE + 0x04))
 #define RCC_CFGR      (*(volatile uint32_t *)(RCC_BASE + 0x08))
+#define RCC_AHB1RSTR  (*(volatile uint32_t *)(RCC_BASE + 0x10))
+#define RCC_AHB2RSTR  (*(volatile uint32_t *)(RCC_BASE + 0x14))
 #define RCC_AHB1ENR   (*(volatile uint32_t *)(RCC_BASE + 0x30))
+#define RCC_AHB2ENR   (*(volatile uint32_t *)(RCC_BASE + 0x34))
 #define RCC_APB1ENR   (*(volatile uint32_t *)(RCC_BASE + 0x40))
 // RCC_CR bits
 #define RCC_CR_HSEON  (1 << 16)
@@ -40,7 +43,8 @@
 #define RCC_AHB1ENR_GPIOA_EN (1 << 0)
 #define RCC_AHB1ENR_GPIOC_EN (1 << 2)
 #define RCC_AHB1ENR_GPIOD_EN (1 << 3)
-
+// USB FS enable bit 
+#define RCC_AHB2ENR_OTGFSEN (1 << 7)
 // FLASH configuration
 #define FLASH_BASE    (0x40023C00)
 #define FLASH_ACR     (*(volatile uint32_t *)(FLASH_BASE + 0x00))
@@ -49,4 +53,15 @@ extern uint32_t SystemCoreClock;
 extern void SystemClockConfig(void);
 extern void Config_MCO(void);
 extern void SystemCoreClockUpdate(void);
+
+static inline void delay_ms(uint32_t ms) {
+    uint32_t cycles = (SystemCoreClock / 3000) * ms;
+    __asm__ volatile (
+        "1: subs %[cycles], %[cycles], #1\n"
+        "   bne 1b\n"
+        : [cycles] "+r" (cycles)
+        :
+        : "cc"
+    );
+}
 #endif /* SYS_CLOCKS_H */
