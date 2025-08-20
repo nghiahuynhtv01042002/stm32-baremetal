@@ -108,7 +108,5 @@ void USB_core_device_init(){
     OTG_FS_GRXFSIZ |= OTG_FS_GRXFSIZ_RXFD;
     // Set Non-periodic TX FIFO (example 64 words) // endpoint 0 rx
     OTG_FS_DIEPTXF0 |= (OTG_FS_DIEPTXF0_TX0FD | OTG_FS_DIEPTXF0_TX0FSA);
-    // Set Non-periodic TX FIFO (example 64 words)
-    OTG_FS_DIEPTXF0 = (64 << 16) | 128; // start addr 128
     // Core device mode ready
 }
