@@ -1,6 +1,6 @@
 #include "sysclocks.h"
 #include "usbfs.h"
-
+#include "gpio.h"
 // USB Device Descriptor (ST VCP compatible)
 const uint8_t usb_device_desc[] = {
     18,         // bLength
@@ -65,9 +65,50 @@ void USB_GPIO_init(void){
     GPIOA_MODER &= ~((1 << 22) | (1 << 24));
     GPIOA_MODER |= ((1<<23) | (1 << 25));
     // Clear a word 32bits for PA11 and PA12
-    GPIOA_AFRH &= ~((0x0F << 12) | (0x0F << 16)) ;
+    GPIOA_AFRH &= ~((0x0F << 12) | (0x0F << 16));
     GPIOA_AFRH |= ((0x0A << 12) | (0x0A << 16));
+    // Set high speed
+    GPIOA_OSPEEDR |= ((0x03 << 22 ) | (0x03 << 24));
+    // Set No pull up / pull down
+    GPIOA_PUPDR |= ((0x03 << 22 ) | (0x03 << 24));
 }
-void USB_core_init(){
-    RCC_AHB2ENR |=RCC_AHB2ENR_OTGFSEN;
+void USB_core_device_init(){
+    // Enable RCC
+    RCC_AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
+    // Wait until AHB is idle
+    while (!(OTG_FS_GRSTCTL & OTG_FS_GRSTCTL_AHBIDL));
+    // Soft Reset USB core
+    OTG_FS_GRSTCTL|= OTG_FS_GRSTCTL_CSRST;
+    // Reset process is not imediately. It took several clock so we have to wait until \
+    bit OTG_FS_GRSTCTL_CSRST(bit 0) is 0
+    while(OTG_FS_GRSTCTL & OTG_FS_GRSTCTL_CSRST);
+    // Wait until AHB is idle
+    while (!(OTG_FS_GRSTCTL & OTG_FS_GRSTCTL_AHBIDL));
+    // Set device mode and clear host mode
+    OTG_FS_GUSBCFG |= OTG_FS_GUSBCFG_FDMOD;
+    OTG_FS_GUSBCFG &= ~OTG_FS_GUSBCFG_FHMOD;
+    // Set USB turnaround time 
+    // @Note: i am not sure about the turnaround time 
+    OTG_FS_GUSBCFG &= ~(0x0f << 10);
+    OTG_FS_GUSBCFG |= OTG_FS_GUSBCFG_TRDT;
+    // Enable VBUS sensing
+    OTG_FS_GCCFG |= OTG_FS_GCCFG_VBUSBSEN;
+    OTG_FS_GCCFG &= ~ OTG_FS_GCCFG_NOVBUSSENS;
+    OTG_FS_GCCFG |= OTG_FS_GCCFG_PWRDWN; // power up PHY
+    // Unmask interrupts: reset, enum done, SOF
+    OTG_FS_GINTMSK = 0; // clear first
+    OTG_FS_GINTMSK |= (1 << 12)  // USB reset
+                    | (1 << 13)  // Enumeration done
+                    | (1 << 3);  // Start-of-Frame
+    // Configure DCFG
+    OTG_FS_DCFG &= ~0x3;                 // clear speed bits
+    OTG_FS_DCFG |= OTG_FS_DCFG_DSPD;     // full-speed device
+    OTG_FS_DCFG |= OTG_FS_DCFG_NZLSOHSK; // non-zero-length status OUT handshake
+    // Set RX FIFO size (example 128 32-bit words)
+    OTG_FS_GRXFSIZ |= OTG_FS_GRXFSIZ_RXFD;
+    // Set Non-periodic TX FIFO (example 64 words) // endpoint 0 rx
+    OTG_FS_DIEPTXF0 |= (OTG_FS_DIEPTXF0_TX0FD | OTG_FS_DIEPTXF0_TX0FSA);
+    // Set Non-periodic TX FIFO (example 64 words)
+    OTG_FS_DIEPTXF0 = (64 << 16) | 128; // start addr 128
+    // Core device mode ready
 }

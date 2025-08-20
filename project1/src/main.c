@@ -13,6 +13,9 @@ int main(void) {
     // config MCO
     Config_MCO();
     GPIOConfig();
+    // Usb config
+    USB_GPIO_init();
+    USB_core_device_init();
     GPIOx_Set_MODER(&GPIOD_MODER,13,0x01);
     for(;;) {
         // Toggle PD12
