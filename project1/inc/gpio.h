@@ -6,6 +6,7 @@
 #define GPIOA_BASE      (0x40020000)
 #define GPIOA_MODER     (*(volatile uint32_t *)(GPIOA_BASE + 0x00))
 #define GPIOA_OSPEEDR   (*(volatile uint32_t *)(GPIOA_BASE + 0x08))
+#define GPIOA_AFRL      (*(volatile uint32_t *)(GPIOA_BASE + 0x20))
 #define GPIOA_AFRH      (*(volatile uint32_t *)(GPIOA_BASE + 0x24))
 #define GPIOA_PUPDR     (*(volatile uint32_t *)(GPIOA_BASE + 0x0C))
 // GPIOC configuration

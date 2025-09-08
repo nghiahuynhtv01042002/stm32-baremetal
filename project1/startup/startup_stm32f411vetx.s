@@ -436,7 +436,8 @@ g_pfnVectors:
 
 	.weak	SPI5_IRQHandler
 	.thumb_set SPI5_IRQHandler,Default_Handler
-
-	.weak	SystemInit
+  // SystemInit
+	.weak	SystemInit 
+  .thumb_set SystemInit,SystemClockConfig
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

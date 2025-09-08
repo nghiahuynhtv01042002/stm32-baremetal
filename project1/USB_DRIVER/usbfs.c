@@ -70,7 +70,7 @@ void USB_GPIO_init(void){
     // Set high speed
     GPIOA_OSPEEDR |= ((0x03 << 22 ) | (0x03 << 24));
     // Set No pull up / pull down
-    GPIOA_PUPDR |= ((0x03 << 22 ) | (0x03 << 24));
+    GPIOA_PUPDR &= ~((0x03 << 22 ) | (0x03 << 24));
 }
 void USB_core_device_init(){
     // Enable RCC
@@ -79,8 +79,7 @@ void USB_core_device_init(){
     while (!(OTG_FS_GRSTCTL & OTG_FS_GRSTCTL_AHBIDL));
     // Soft Reset USB core
     OTG_FS_GRSTCTL|= OTG_FS_GRSTCTL_CSRST;
-    // Reset process is not imediately. It took several clock so we have to wait until \
-    bit OTG_FS_GRSTCTL_CSRST(bit 0) is 0
+    // Reset process is not imediately. It took several clock so we have to wait until bit OTG_FS_GRSTCTL_CSRST(bit 0) is 0
     while(OTG_FS_GRSTCTL & OTG_FS_GRSTCTL_CSRST);
     // Wait until AHB is idle
     while (!(OTG_FS_GRSTCTL & OTG_FS_GRSTCTL_AHBIDL));
@@ -105,8 +104,41 @@ void USB_core_device_init(){
     OTG_FS_DCFG |= OTG_FS_DCFG_DSPD;     // full-speed device
     OTG_FS_DCFG |= OTG_FS_DCFG_NZLSOHSK; // non-zero-length status OUT handshake
     // Set RX FIFO size (example 128 32-bit words)
-    OTG_FS_GRXFSIZ |= OTG_FS_GRXFSIZ_RXFD;
+    OTG_FS_GRXFSIZ = OTG_FS_GRXFSIZ_RXFD;
     // Set Non-periodic TX FIFO (example 64 words) // endpoint 0 rx
     OTG_FS_DIEPTXF0 |= (OTG_FS_DIEPTXF0_TX0FD | OTG_FS_DIEPTXF0_TX0FSA);
-    // Core device mode ready
+    // NVIC USB FS enable
+
 }
+//  Wait to verify
+// void NVIC_EnableUSB_BareMetal(void) {
+//     // USB OTG FS IRQ = 67
+//     // Register index = 67 / 32 = 2 (NVIC_ISER[2])
+//     // Bit position = 67 % 32 = 3
+    
+//     uint32_t reg_index = OTG_FS_IRQn / 32;      // = 2
+//     uint32_t bit_pos = OTG_FS_IRQn % 32;        // = 3
+    
+//     // 1. Set priority (optional) - Priority 5
+//     uint32_t priority = 5;
+//     uint32_t ipr_index = OTG_FS_IRQn / 4;       // 67/4 = 16
+//     uint32_t ipr_shift = (OTG_FS_IRQn % 4) * 8; // (67%4)*8 = 24
+    
+//     // Clear old priority and set new one
+//     NVIC_IPR[ipr_index] &= ~(0xFF << ipr_shift);
+//     NVIC_IPR[ipr_index] |= ((priority << 4) << ipr_shift);
+    
+//     // 2. Clear any pending interrupt
+//     NVIC_ICPR[reg_index] = (1 << bit_pos);
+    
+//     // 3. Enable interrupt
+//     NVIC_ISER[reg_index] = (1 << bit_pos);
+// }
+
+// void NVIC_DisableUSB_BareMetal(void) {
+//     uint32_t reg_index = OTG_FS_IRQn / 32;
+//     uint32_t bit_pos = OTG_FS_IRQn % 32;
+    
+//     // Disable interrupt
+//     NVIC_ICER[reg_index] = (1 << bit_pos);
+// }

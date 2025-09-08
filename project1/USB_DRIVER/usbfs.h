@@ -2,7 +2,6 @@
 #define USB_FS_H
 #include "sysclocks.h"
 #include "gpio.h"
-#define NVIC_BASE       (0xE000E100UL)
 #define USB_OTG_FS_BASE (0x50000000UL)
 // USB OTG Registers
 #define OTG_FS_GOTGCTL         (*(volatile uint32_t *)(USB_OTG_FS_BASE + 0x000))
@@ -32,8 +31,8 @@
 #define OTG_FS_GCCFG_NOVBUSSENS (1 << 21)
 
 #define OTG_FS_GRXFSIZ_RXFD    ((128ul & 0xFFFF ) << 0)
-#define OTG_FS_DIEPTXF0_TX0FD ((64ul & 0xFFFF ) << 16)
-#define OTG_FS_DIEPTXF0_TX0FSA ((128ul & 0xFFFF) << 0)
+#define OTG_FS_DIEPTXF0_TX0FD ((128ul & 0xFFFF ) << 16)
+#define OTG_FS_DIEPTXF0_TX0FSA ((64ul & 0xFFFF) << 0)
 // Device Mode Registers
 #define OTG_FS_DCFG            (*(volatile uint32_t *)(USB_OTG_FS_BASE + 0x800))
 #define OTG_FS_DCTL            (*(volatile uint32_t *)(USB_OTG_FS_BASE + 0x804))
@@ -82,9 +81,6 @@
 #define OTG_FS_FIFO0           (*(volatile uint32_t *)(USB_OTG_FS_BASE + 0x1000))
 #define OTG_FS_FIFO1           (*(volatile uint32_t *)(USB_OTG_FS_BASE + 0x2000))
 #define OTG_FS_FIFO2           (*(volatile uint32_t *)(USB_OTG_FS_BASE + 0x3000))
-
-// NVIC Registers
-#define NVIC_ISER1          (*(volatile uint32_t *)(NVIC_BASE + 0x04))
 
 // USB States
 typedef enum {
