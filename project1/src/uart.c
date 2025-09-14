@@ -1,7 +1,6 @@
-// uart.c
 #include "uart.h"
+#include "nvic.h" 
 
-// Global variables
 volatile UART_Mode_t current_uart_mode = UART_MODE_NORMAL;
 volatile uint8_t uart_tx_buffer[UART_TX_BUFFER_SIZE];
 volatile uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
@@ -10,16 +9,14 @@ volatile uint16_t uart_rx_head = 0, uart_rx_tail = 0;
 volatile bool uart_tx_busy = false;
 
 // Private function to calculate BRR value
-static uint32_t UART_CalculateBRR(uint32_t baudrate)
-{
-    // APB1 clock = SystemCoreClock / 2 = 48MHz
+static uint32_t UART_CalculateBRR(uint32_t baudrate) {
+    // APB1 clock = SystemCoreClock / 2
     uint32_t apb1_clock = SystemCoreClock / 2;
     return (apb1_clock + (baudrate / 2)) / baudrate;
 }
 
 // Initialize UART GPIO pins (PA2-TX, PA3-RX)
-static void UART_GPIO_Init(void)
-{
+static void UART_GPIO_Init(void) {
     // Enable GPIOA clock
     RCC_AHB1ENR |= RCC_AHB1ENR_GPIOA_EN;
     
@@ -40,8 +37,7 @@ static void UART_GPIO_Init(void)
 }
 
 // General UART initialization
-void UART_Init(UART_Config_t *config)
-{
+void UART_Init(UART_Config_t *config) {
     switch(config->mode) {
         case UART_MODE_NORMAL:
             UART_Normal_Init(config->baudrate);
@@ -59,8 +55,7 @@ void UART_Init(UART_Config_t *config)
 }
 
 // Normal mode initialization
-void UART_Normal_Init(uint32_t baudrate)
-{
+void UART_Normal_Init(uint32_t baudrate) {
     // Initialize GPIO
     UART_GPIO_Init();
     
@@ -85,8 +80,7 @@ void UART_Normal_Init(uint32_t baudrate)
 }
 
 // DMA mode initialization
-void UART_DMA_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size)
-{
+void UART_DMA_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size) {
     // Initialize GPIO
     UART_GPIO_Init();
     
@@ -145,8 +139,7 @@ void UART_DMA_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t
 }
 
 // Interrupt mode initialization
-void UART_Interrupt_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size)
-{
+void UART_Interrupt_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size) {
     // Initialize GPIO
     UART_GPIO_Init();
     
@@ -183,8 +176,7 @@ void UART_Interrupt_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, ui
 }
 
 // Send single character (blocking)
-void UART_SendChar(char c)
-{
+void UART_SendChar(char c) {
     if (current_uart_mode == UART_MODE_NORMAL) {
         while(!(USART2_SR & USART_SR_TXE));
         USART2_DR = c;
@@ -192,8 +184,7 @@ void UART_SendChar(char c)
 }
 
 // Receive single character (blocking)
-char UART_ReceiveChar(void)
-{
+char UART_ReceiveChar(void) {
     if (current_uart_mode == UART_MODE_NORMAL) {
         while(!(USART2_SR & USART_SR_RXNE));
         return USART2_DR;
@@ -201,23 +192,31 @@ char UART_ReceiveChar(void)
     return 0;
 }
 
-// Send string
-void UART_SendString(const char *str)
-{
-    if (current_uart_mode == UART_MODE_NORMAL) {
-        while(*str) {
-            UART_SendChar(*str++);
-        }
-    } else if (current_uart_mode == UART_MODE_DMA) {
-        UART_DMA_SendData((const uint8_t*)str, strlen(str));
-    } else if (current_uart_mode == UART_MODE_INTERRUPT) {
-        UART_INT_SendData((const uint8_t*)str, strlen(str));
-    }
-}
 
+void UART_Normal_SendData(const uint8_t *str, uint16_t length) __attribute__((weak, alias("UART_Normal_SendData_weak")));
+// Weak alias for UART_Normal_SendData
+void UART_Normal_SendData_weak(const uint8_t *str, uint16_t length) {
+    uint16_t count = 0;
+        while(count < length) {
+            if (current_uart_mode == UART_MODE_NORMAL) {
+                while(!(USART2_SR & USART_SR_TXE));
+                USART2_DR = *str++;
+                count++;
+            }
+        }
+}
+uint16_t UART_Normal_ReceiveData(uint8_t *buffer, uint16_t max_length) __attribute__((weak, alias("UART_Normal_ReceiveData_weak")));
+uint16_t UART_Normal_ReceiveData_weak(uint8_t *buffer, uint16_t max_length) {
+    uint16_t count = 0; 
+    while(count < max_length) {
+        if(USART2_SR & USART_SR_RXNE){
+            buffer[count++] = USART2_DR;
+        }
+    }
+    return count;
+}
 // DMA send data
-void UART_DMA_SendData(const uint8_t *data, uint16_t length)
-{
+void UART_DMA_SendData(const uint8_t *data, uint16_t length) {
     // Wait for previous transfer to complete
     while(DMA1_S6CR & DMA_SxCR_EN);
     
@@ -232,17 +231,15 @@ void UART_DMA_SendData(const uint8_t *data, uint16_t length)
     DMA1_S6CR |= DMA_SxCR_EN;
 }
 
+
 // Get RX count in DMA mode
-uint16_t UART_DMA_GetRxCount(void)
-{
+uint16_t UART_DMA_GetRxCount(void) {
     return DMA1_S5NDTR;
 }
 
 // Interrupt send data
-void UART_INT_SendData(const uint8_t *data, uint16_t length)
-{
+void UART_INT_SendData(const uint8_t *data, uint16_t length) {
     uint16_t i;
-    
     // Disable TX interrupt temporarily
     USART2_CR1 &= ~USART_CR1_TXEIE;
     
@@ -252,6 +249,8 @@ void UART_INT_SendData(const uint8_t *data, uint16_t length)
         if(next_head != uart_tx_tail) {
             uart_tx_buffer[uart_tx_head] = data[i];
             uart_tx_head = next_head;
+        } else {
+            break;
         }
     }
     
@@ -259,20 +258,20 @@ void UART_INT_SendData(const uint8_t *data, uint16_t length)
     if(!uart_tx_busy && uart_tx_head != uart_tx_tail) {
         uart_tx_busy = true;
         USART2_CR1 |= USART_CR1_TXEIE;
+    } else {
+        uart_tx_busy = false;
     }
 }
 
 // Get RX count in interrupt mode
-uint16_t UART_INT_GetRxCount(void)
-{
+uint16_t UART_INT_GetRxCount(void) {
     return (uart_rx_head >= uart_rx_tail) ? 
            (uart_rx_head - uart_rx_tail) : 
            (UART_RX_BUFFER_SIZE - uart_rx_tail + uart_rx_head);
 }
 
 // Check if data is available
-bool UART_DataAvailable(void)
-{
+bool UART_DataAvailable(void) {
     switch(current_uart_mode) {
         case UART_MODE_NORMAL:
             return (USART2_SR & USART_SR_RXNE);
@@ -283,13 +282,10 @@ bool UART_DataAvailable(void)
     }
 }
 
-void UART_SendData(const uint8_t *data, uint16_t length)
-{
+void UART_SendData(const uint8_t *data, uint16_t length) {
     switch(current_uart_mode) {
         case UART_MODE_NORMAL:
-            for(uint16_t i = 0; i < length; i++) {
-                UART_SendChar(data[i]);
-            }
+            UART_Normal_SendData(data, length) ;
             break;
         case UART_MODE_DMA:
             UART_DMA_SendData(data, length);
@@ -300,16 +296,24 @@ void UART_SendData(const uint8_t *data, uint16_t length)
     }
 }
 
+// Send string
+void UART_SendString(const char *str) {
+    if (current_uart_mode == UART_MODE_NORMAL) {
+        UART_Normal_SendData((const uint8_t*)str, strlen(str));
+    } else if (current_uart_mode == UART_MODE_DMA) {
+        UART_DMA_SendData((const uint8_t*)str, strlen(str));
+    } else if (current_uart_mode == UART_MODE_INTERRUPT) {
+        UART_INT_SendData((const uint8_t*)str, strlen(str));
+    }
+}
+
 // Receive data from RX buffer
-uint16_t UART_ReceiveData(uint8_t *data, uint16_t max_length)
-{
+uint16_t UART_ReceiveData(uint8_t *data, uint16_t max_length) {
     uint16_t count = 0;
 
     switch(current_uart_mode) {
         case UART_MODE_NORMAL:
-            while(count < max_length && (USART2_SR & USART_SR_RXNE)) {
-                data[count++] = USART2_DR;
-            }
+            UART_Normal_ReceiveData(data, UART_RX_BUFFER_SIZE);
             break;
 
         case UART_MODE_INTERRUPT:
@@ -356,8 +360,7 @@ void UART_DMA_StartReceive(void)
 }
 // Interrupt handlers
 extern void USART2_IRQHandler(void);
-void USART2_IRQHandler(void)
-{
+void USART2_IRQHandler(void) {
     // RX interrupt
     if(USART2_SR & USART_SR_RXNE) {
         uint8_t data = USART2_DR;
@@ -368,14 +371,22 @@ void USART2_IRQHandler(void)
         }
     }
     
-    // TX interrupt
-    if(USART2_SR & USART_SR_TXE && USART2_CR1 & USART_CR1_TXEIE) {
-        if(uart_tx_head != uart_tx_tail) {
-            USART2_DR = uart_tx_buffer[uart_tx_tail];
-            uart_tx_tail = (uart_tx_tail + 1) % UART_TX_BUFFER_SIZE;
-        } else {
-            USART2_CR1 &= ~USART_CR1_TXEIE;
-            uart_tx_busy = false;
-        }
+    // // TX interrupt
+    // if((USART2_SR & USART_SR_TXE) && (USART2_CR1 & USART_CR1_TXEIE)) {
+    //     if(uart_tx_head != uart_tx_tail) {
+    //         USART2_DR = uart_tx_buffer[uart_tx_tail];
+    //         uart_tx_tail = (uart_tx_tail + 1) % UART_TX_BUFFER_SIZE;
+    //     } else {
+    //         USART2_CR1 &= ~USART_CR1_TXEIE;
+    //         uart_tx_busy = false;
+    //     }
+    // }
+}
+static volatile bool dma_tx_done = false;
+extern void DMA1_Stream6_IRQHandler(void);
+void DMA1_Stream6_IRQHandler(void) {
+    if(DMA1_HISR & (1 << 21)) {   // check TCIF6
+        DMA1_HIFCR |= (1 << 21);   // clear flag
+        dma_tx_done = true;        // báo hoàn tất
     }
 }

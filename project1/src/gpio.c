@@ -21,7 +21,9 @@ void GPIOx_Set_MODER(volatile uint32_t* GPIOx_MODER, uint8_t pinNumber, uint8_t 
     *GPIOx_MODER &= ~mask;           
     *GPIOx_MODER |= ((mode & 0x3) << shift); 
 }
-
+void GPIOx_write(volatile uint32_t * GPIOx_ODR, uint8_t pinNumber) {
+    *GPIOx_ODR |= (1 << pinNumber);
+}
 void GPIOx_Toggle(volatile uint32_t * GPIOx_ODR, uint8_t pinNumber) {
     *GPIOx_ODR ^= (1 << pinNumber);
 }
