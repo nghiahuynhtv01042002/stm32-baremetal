@@ -384,7 +384,7 @@ void USART2_IRQHandler(void) {
 
     // Transmission Complete
     if((USART2_SR & USART_SR_TC) && (USART2_CR1 & USART_CR1_TCIE)) {
-        USART2_SR &= ~USART_SR_TC;
+        // USART2_SR &= ~USART_SR_TC;
         USART2_CR1 &= ~USART_CR1_TCIE;   
         uart_tx_busy = false;            
     }

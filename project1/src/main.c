@@ -4,8 +4,8 @@
 #include "gpio.h"
 #include "nvic.h"
 #include "uart.h"
-#define test_RX
-// #define test_TX
+#define NORMAL
+// #define INTERRUPT
 extern uint32_t SystemCoreClock;
 extern void GPIOConfig(void);
 extern void Config_MCO(void);
@@ -27,7 +27,7 @@ uint16_t UART_Normal_ReceiveData(uint8_t *buffer, uint16_t max_length) {
 }
 
 void UART_Normal_SendData(const uint8_t *str,uint16_t length) {
-    while(*str) {
+    for(uint16_t idx =0 ; (*str) && (idx <length); ++idx) {
         // Wait TXE
         while(!(USART2_SR & USART_SR_TXE));
         char c = *str++;
@@ -67,34 +67,34 @@ void UART_Interrupt_SendData(const uint8_t *buffer, uint16_t length) {
 }
 
 void UART_Normal_EchoTask(UART_Config_t* uart_cfg) {
-    static uint8_t data[UART_RX_BUFFER_SIZE];
-    memset(data,'0',UART_RX_BUFFER_SIZE);
-    uint16_t len = UART_Normal_ReceiveData(data, UART_RX_BUFFER_SIZE);
+    static uint8_t data_normal[UART_RX_BUFFER_SIZE];
+    memset(data_normal,'0',UART_RX_BUFFER_SIZE);
+    uint16_t len = UART_Normal_ReceiveData(data_normal, UART_RX_BUFFER_SIZE);
     // length is meanlless in this implement
     if(len > 0) {
         UART_Normal_SendData("echo :",8);
-        UART_Normal_SendData((const uint8_t *)data,sizeof(data));
+        UART_Normal_SendData((const uint8_t *)data_normal,sizeof(data_normal));
     }
 
 }
 void UART_Interrupt_EchoTask(UART_Config_t* uart_cfg) {
-    static uint8_t data[UART_RX_BUFFER_SIZE];
-    memset(data,'0',UART_RX_BUFFER_SIZE);
-    uint16_t len = UART_Interrupt_ReceiveData(data, UART_RX_BUFFER_SIZE);
+    static uint8_t data_interrupt[UART_RX_BUFFER_SIZE];
+    memset(data_interrupt,'0',UART_RX_BUFFER_SIZE);
+    uint16_t len = UART_Interrupt_ReceiveData(data_interrupt, UART_RX_BUFFER_SIZE);
     if (len > 0) {
         UART_Interrupt_SendData("echo :",8);
-        UART_Interrupt_SendData((const uint8_t *)data,sizeof(data));
+        UART_Interrupt_SendData((const uint8_t *)data_interrupt,sizeof(data_interrupt));
     }
 
 }
 
 int main(void) {
-    // SystemClockConfig();
     GPIOConfig();
     GPIOx_Set_MODER(&GPIOD_MODER, 13, 0x01);
     UART_Config_t uart_cfg;
-    // uart_cfg.mode = UART_MODE_NORMAL;  
-    uart_cfg.mode = UART_MODE_INTERRUPT;  
+#ifdef INTERRUPT
+    // ===== Interrupt =====
+    uart_cfg.mode = UART_MODE_INTERRUPT;
     uart_cfg.baudrate = 115200;
     uart_cfg.tx_buffer = tx_buf;
     uart_cfg.rx_buffer = rx_buf;
@@ -103,12 +103,28 @@ int main(void) {
 
     UART_Init(&uart_cfg);
 
-    UART_Normal_SendData("UART Echo Test Start\r\n",0);
-    // GPIOx_write(&GPIOD_ODR, 13);
+    UART_Interrupt_SendData("UART Interupt Echo Test Start\r\n",32);
     while(1) {
-
-        // UART_Normal_EchoTask(&uart_cfg);
         UART_Interrupt_EchoTask(&uart_cfg);
         delay_ms(1000);
     }
+#endif
+ 
+#ifdef NORMAL
+    // ===== Normal =====
+    uart_cfg.mode = UART_MODE_NORMAL;
+    uart_cfg.baudrate = 115200;
+    uart_cfg.tx_buffer = tx_buf;
+    uart_cfg.rx_buffer = rx_buf;
+    uart_cfg.tx_buffer_size = UART_TX_BUFFER_SIZE;
+    uart_cfg.rx_buffer_size = UART_RX_BUFFER_SIZE;
+
+    UART_Init(&uart_cfg);
+
+    UART_Normal_SendData("UART Normal Echo Test Start\r\n",30);
+    while(1) {
+        UART_Normal_EchoTask(&uart_cfg);
+        delay_ms(1000);
+    }
+#endif
 }
