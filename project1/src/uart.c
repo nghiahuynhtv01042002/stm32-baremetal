@@ -307,7 +307,7 @@ void UART_SendString(const char *str) {
     }
 }
 
-// Receive data from RX buffer
+// Abstraction for UART_ReceiveData
 uint16_t UART_ReceiveData(uint8_t *data, uint16_t max_length) {
     uint16_t count = 0;
 
@@ -371,16 +371,23 @@ void USART2_IRQHandler(void) {
         }
     }
     
-    // // TX interrupt
-    // if((USART2_SR & USART_SR_TXE) && (USART2_CR1 & USART_CR1_TXEIE)) {
-    //     if(uart_tx_head != uart_tx_tail) {
-    //         USART2_DR = uart_tx_buffer[uart_tx_tail];
-    //         uart_tx_tail = (uart_tx_tail + 1) % UART_TX_BUFFER_SIZE;
-    //     } else {
-    //         USART2_CR1 &= ~USART_CR1_TXEIE;
-    //         uart_tx_busy = false;
-    //     }
-    // }
+    // TX interrupt
+    if((USART2_SR & USART_SR_TXE) && (USART2_CR1 & USART_CR1_TXEIE)) {
+        if(uart_tx_head != uart_tx_tail) {
+            USART2_DR = uart_tx_buffer[uart_tx_tail];
+            uart_tx_tail = (uart_tx_tail + 1) % UART_TX_BUFFER_SIZE;
+        } else {
+            USART2_CR1 &= ~USART_CR1_TXEIE;
+            USART2_CR1 |=  USART_CR1_TCIE;   
+        }
+    }
+
+    // Transmission Complete
+    if((USART2_SR & USART_SR_TC) && (USART2_CR1 & USART_CR1_TCIE)) {
+        USART2_SR &= ~USART_SR_TC;
+        USART2_CR1 &= ~USART_CR1_TCIE;   
+        uart_tx_busy = false;            
+    }
 }
 static volatile bool dma_tx_done = false;
 extern void DMA1_Stream6_IRQHandler(void);

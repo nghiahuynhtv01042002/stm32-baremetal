@@ -58,7 +58,7 @@ Reset_Handler:
   ldr   r0, =_estack
   mov   sp, r0          /* set stack pointer */
 /* Call the clock system initialization function.*/
-  bl  SystemInit
+  bl  SystemClockConfig
 
 /* Copy the data segment initializers from flash to SRAM */
   ldr r0, =_sdata
@@ -436,8 +436,5 @@ g_pfnVectors:
 
 	.weak	SPI5_IRQHandler
 	.thumb_set SPI5_IRQHandler,Default_Handler
-  // SystemInit
-	.weak	SystemInit 
-  .thumb_set SystemInit,SystemClockConfig
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
