@@ -139,7 +139,6 @@ char UART_ReceiveChar(void);
 void UART_SendString(const char *str);
 void UART_SendData(const uint8_t *data, uint16_t length);
 uint16_t UART_ReceiveData(uint8_t *data, uint16_t max_length);
-bool UART_DataAvailable(void);
 
 // Mode specific functions
 void UART_Normal_Init(uint32_t baudrate);
@@ -150,10 +149,14 @@ void UART_Interrupt_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, ui
 void UART_DMA_SendData(const uint8_t *data, uint16_t length);
 uint16_t UART_DMA_GetRxCount(void);
 void UART_DMA_StartReceive(void);
+bool UART_DMA_IsTxComplete(void);
+void UART_DMA_WaitTxComplete(void);
+uint16_t UART_DMA_GetRxData(uint8_t *buffer, uint16_t max_length);
+void UART_DMA_ClearRxBuffer(void);
+bool UART_DMA_IsRxOverflow(void);
 
 // Interrupt specific functions
 void UART_INT_SendData(const uint8_t *data, uint16_t length);
-uint16_t UART_INT_GetRxCount(void);
 
 // Global variables
 extern volatile UART_Mode_t current_uart_mode;
@@ -162,5 +165,10 @@ extern volatile uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
 extern volatile uint16_t uart_tx_head, uart_tx_tail;
 extern volatile uint16_t uart_rx_head, uart_rx_tail;
 extern volatile bool uart_tx_busy;
+
+extern volatile bool dma_tx_done;
+extern volatile bool dma_rx_overflow;
+extern volatile uint16_t dma_rx_last_pos;
+
 
 #endif /* UART_H */

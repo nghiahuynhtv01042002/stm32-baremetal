@@ -79,65 +79,6 @@ void UART_Normal_Init(uint32_t baudrate) {
     USART2_CR1 |= USART_CR1_UE;
 }
 
-// DMA mode initialization
-void UART_DMA_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size) {
-    // Initialize GPIO
-    UART_GPIO_Init();
-    
-    // Enable clocks
-    RCC_APB1ENR |= RCC_APB1ENR_USART2EN;
-    RCC_AHB1ENR |= RCC_AHB1ENR_DMA1EN;
-    
-    // Disable UART
-    USART2_CR1 &= ~USART_CR1_UE;
-    
-    // Configure baud rate
-    USART2_BRR = UART_CalculateBRR(baudrate);
-    
-    // Configure UART
-    USART2_CR1 &= ~(USART_CR1_M | USART_CR1_PCE);
-    USART2_CR2 &= ~(3 << 12);
-    
-    // Enable DMA for TX and RX
-    USART2_CR3 |= USART_CR3_DMAT | USART_CR3_DMAR;
-    
-    // Configure DMA1 Stream 6 for TX (Channel 4)
-    DMA1_S6CR &= ~DMA_SxCR_EN; // Disable stream
-    while(DMA1_S6CR & DMA_SxCR_EN); // Wait until disabled
-    
-    DMA1_S6PAR = (uint32_t)&USART2_DR;
-    DMA1_S6M0AR = (uint32_t)tx_buf;
-    DMA1_S6CR = (4 << 25) |           // Channel 4
-                (1 << 6) |            // Memory to peripheral
-                DMA_SxCR_MINC |       // Memory increment
-                DMA_SxCR_TCIE;        // Transfer complete interrupt
-    
-    // Configure DMA1 Stream 5 for RX (Channel 4)
-    DMA1_S5CR &= ~DMA_SxCR_EN;
-    while(DMA1_S5CR & DMA_SxCR_EN);
-    
-    DMA1_S5PAR = (uint32_t)&USART2_DR;
-    DMA1_S5M0AR = (uint32_t)rx_buf;
-    DMA1_S5NDTR = rx_size;
-    DMA1_S5CR = (4 << 25) |           // Channel 4
-                DMA_SxCR_CIRC |       // Circular mode
-                DMA_SxCR_MINC |       // Memory increment
-                DMA_SxCR_TCIE |       // Transfer complete interrupt
-                DMA_SxCR_EN;          // Enable stream
-    
-    // Enable DMA interrupts
-    NVIC_SetPriority(DMA1_Stream5_IRQn, 2);
-    NVIC_SetPriority(DMA1_Stream6_IRQn, 2);
-    NVIC_EnableIRQ(DMA1_Stream5_IRQn);
-    NVIC_EnableIRQ(DMA1_Stream6_IRQn);
-    
-    // Enable transmitter and receiver
-    USART2_CR1 |= USART_CR1_TE | USART_CR1_RE;
-    
-    // Enable UART
-    USART2_CR1 |= USART_CR1_UE;
-}
-
 // Interrupt mode initialization
 void UART_Interrupt_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size) {
     // Initialize GPIO
@@ -215,27 +156,6 @@ uint16_t UART_Normal_ReceiveData_weak(uint8_t *buffer, uint16_t max_length) {
     }
     return count;
 }
-// DMA send data
-void UART_DMA_SendData(const uint8_t *data, uint16_t length) {
-    // Wait for previous transfer to complete
-    while(DMA1_S6CR & DMA_SxCR_EN);
-    
-    // Configure new transfer
-    DMA1_S6M0AR = (uint32_t)data;
-    DMA1_S6NDTR = length;
-    
-    // Clear transfer complete flag
-    DMA1_HIFCR |= (1 << 21); // Clear TCIF6
-    
-    // Enable stream
-    DMA1_S6CR |= DMA_SxCR_EN;
-}
-
-
-// Get RX count in DMA mode
-uint16_t UART_DMA_GetRxCount(void) {
-    return DMA1_S5NDTR;
-}
 
 // Interrupt send data
 void UART_INT_SendData(const uint8_t *data, uint16_t length) {
@@ -260,25 +180,6 @@ void UART_INT_SendData(const uint8_t *data, uint16_t length) {
         USART2_CR1 |= USART_CR1_TXEIE;
     } else {
         uart_tx_busy = false;
-    }
-}
-
-// Get RX count in interrupt mode
-uint16_t UART_INT_GetRxCount(void) {
-    return (uart_rx_head >= uart_rx_tail) ? 
-           (uart_rx_head - uart_rx_tail) : 
-           (UART_RX_BUFFER_SIZE - uart_rx_tail + uart_rx_head);
-}
-
-// Check if data is available
-bool UART_DataAvailable(void) {
-    switch(current_uart_mode) {
-        case UART_MODE_NORMAL:
-            return (USART2_SR & USART_SR_RXNE);
-        case UART_MODE_INTERRUPT:
-            return (uart_rx_head != uart_rx_tail);
-        default:
-            return false;
     }
 }
 
@@ -341,23 +242,6 @@ uint16_t UART_ReceiveData(uint8_t *data, uint16_t max_length) {
     return count;
 }
 
-// Restart DMA reception (useful after buffer overflow or re-init)
-void UART_DMA_StartReceive(void)
-{
-    // Disable stream first
-    DMA1_S5CR &= ~DMA_SxCR_EN;
-    while(DMA1_S5CR & DMA_SxCR_EN);
-
-    // Reset NDTR to buffer size
-    DMA1_S5NDTR = UART_RX_BUFFER_SIZE;
-    DMA1_S5M0AR = (uint32_t)uart_rx_buffer;
-
-    // Clear interrupt flags
-    DMA1_LIFCR |= 0x3D000000; // Clear all flags for Stream5
-
-    // Enable stream
-    DMA1_S5CR |= DMA_SxCR_EN;
-}
 // Interrupt handlers
 extern void USART2_IRQHandler(void);
 void USART2_IRQHandler(void) {
@@ -389,11 +273,224 @@ void USART2_IRQHandler(void) {
         uart_tx_busy = false;            
     }
 }
-static volatile bool dma_tx_done = false;
-extern void DMA1_Stream6_IRQHandler(void);
-void DMA1_Stream6_IRQHandler(void) {
-    if(DMA1_HISR & (1 << 21)) {   // check TCIF6
-        DMA1_HIFCR |= (1 << 21);   // clear flag
-        dma_tx_done = true;        // báo hoàn tất
+volatile bool dma_tx_done = false;
+volatile bool dma_rx_overflow = false;
+volatile uint16_t dma_rx_last_pos = 0;
+
+void UART_DMA_SendData(const uint8_t *data, uint16_t length) {
+    if (length == 0) return;
+    
+    while(DMA1_S6CR & DMA_SxCR_EN) ;
+    
+    // Clear transfer complete flag
+    DMA1_HIFCR |= (1 << 21); // Clear TCIF6
+    DMA1_HIFCR |= (1 << 16); // Clear FEIF6
+    DMA1_HIFCR |= (1 << 18); // Clear DMEIF6
+    DMA1_HIFCR |= (1 << 19); // Clear TEIF6
+    DMA1_HIFCR |= (1 << 20); // Clear HTIF6
+    
+    // Reset flag
+    dma_tx_done = false;
+    
+    // Configure new transfer
+    DMA1_S6M0AR = (uint32_t)data;
+    DMA1_S6NDTR = length;
+    
+    // Enable stream
+    DMA1_S6CR |= DMA_SxCR_EN;
+}
+
+bool UART_DMA_IsTxComplete(void) {
+    return dma_tx_done;
+}
+
+void UART_DMA_WaitTxComplete(void) {
+    while(!dma_tx_done);
+}
+
+uint16_t UART_DMA_GetRxData(uint8_t *buffer, uint16_t max_length) {
+    if (buffer == NULL || max_length == 0) return 0;
+    
+    // get current pos
+    uint16_t current_ndtr = DMA1_S5NDTR;
+    uint16_t current_pos = UART_RX_BUFFER_SIZE - current_ndtr;
+    
+    uint16_t available_data = 0;
+    uint16_t bytes_to_read = 0;
+    
+    if (current_pos >= dma_rx_last_pos) {
+        available_data = current_pos - dma_rx_last_pos;
+    } else {
+        available_data = (UART_RX_BUFFER_SIZE - dma_rx_last_pos) + current_pos;
+        dma_rx_overflow = true;
     }
+    
+    bytes_to_read = (available_data > max_length) ? max_length : available_data;
+    
+    for (uint16_t i = 0; i < bytes_to_read; i++) {
+        buffer[i] = uart_rx_buffer[(dma_rx_last_pos + i) % UART_RX_BUFFER_SIZE];
+    }
+    
+    dma_rx_last_pos = (dma_rx_last_pos + bytes_to_read) % UART_RX_BUFFER_SIZE;
+    
+    return bytes_to_read;
+}
+
+uint16_t UART_DMA_GetRxCount(void) {
+    uint16_t current_ndtr = DMA1_S5NDTR;
+    uint16_t current_pos = UART_RX_BUFFER_SIZE - current_ndtr;
+    
+    if (current_pos >= dma_rx_last_pos) {
+        return current_pos - dma_rx_last_pos;
+    } else {
+        return (UART_RX_BUFFER_SIZE - dma_rx_last_pos) + current_pos;
+    }
+}
+
+void UART_DMA_ClearRxBuffer(void) {
+    uint16_t current_ndtr = DMA1_S5NDTR;
+    dma_rx_last_pos = UART_RX_BUFFER_SIZE - current_ndtr;
+    dma_rx_overflow = false;
+}
+
+bool UART_DMA_IsRxOverflow(void) {
+    return dma_rx_overflow;
+}
+
+void UART_DMA_StartReceive(void) {
+    // Disable stream first
+    DMA1_S5CR &= ~DMA_SxCR_EN;
+    while(DMA1_S5CR & DMA_SxCR_EN);
+
+    // Clear all interrupt flags for Stream5
+    DMA1_LIFCR |= (1 << 11); // TCIF5
+    DMA1_LIFCR |= (1 << 6);  // FEIF5  
+    DMA1_LIFCR |= (1 << 8);  // DMEIF5
+    DMA1_LIFCR |= (1 << 9);  // TEIF5
+    DMA1_LIFCR |= (1 << 10); // HTIF5
+
+    // Reset NDTR to buffer size
+    DMA1_S5NDTR = UART_RX_BUFFER_SIZE;
+    DMA1_S5M0AR = (uint32_t)uart_rx_buffer;
+
+    // Reset tracking variables
+    dma_rx_last_pos = 0;
+    dma_rx_overflow = false;
+
+    // Enable stream
+    DMA1_S5CR |= DMA_SxCR_EN;
+}
+
+void DMA1_Stream6_IRQHandler(void) {
+    // TX Complete interrupt
+    if(DMA1_HISR & (1 << 21)) {   // Check TCIF6
+        DMA1_HIFCR |= (1 << 21);  // Clear TCIF6
+        dma_tx_done = true;
+    }
+    
+    // Error interrupts
+    if(DMA1_HISR & (1 << 16)) {   // FEIF6 - FIFO Error
+        DMA1_HIFCR |= (1 << 16);
+    }
+    
+    if(DMA1_HISR & (1 << 18)) {   // DMEIF6 - Direct Mode Error  
+        DMA1_HIFCR |= (1 << 18);
+    }
+    
+    if(DMA1_HISR & (1 << 19)) {   // TEIF6 - Transfer Error
+        DMA1_HIFCR |= (1 << 19);
+    }
+}
+
+void DMA1_Stream5_IRQHandler(void) {
+    // RX Half Transfer interrupt
+    if(DMA1_LISR & (1 << 10)) {   // HTIF5
+        DMA1_LIFCR |= (1 << 10);
+    }
+    
+    // RX Transfer Complete interrupt 
+    if(DMA1_LISR & (1 << 11)) {   // TCIF5
+        DMA1_LIFCR |= (1 << 11);
+    }
+    
+    // Error interrupts
+    if(DMA1_LISR & (1 << 6)) {    // FEIF5
+        DMA1_LIFCR |= (1 << 6);
+    }
+    
+    if(DMA1_LISR & (1 << 8)) {    // DMEIF5
+        DMA1_LIFCR |= (1 << 8);
+    }
+    
+    if(DMA1_LISR & (1 << 9)) {    // TEIF5
+        DMA1_LIFCR |= (1 << 9);
+    }
+}
+
+void UART_DMA_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size) {
+    // Initialize GPIO
+    UART_GPIO_Init();
+    
+    // Enable clocks
+    RCC_APB1ENR |= RCC_APB1ENR_USART2EN;
+    RCC_AHB1ENR |= RCC_AHB1ENR_DMA1EN;
+    
+    // Disable UART
+    USART2_CR1 &= ~USART_CR1_UE;
+    
+    // Configure baud rate
+    USART2_BRR = UART_CalculateBRR(baudrate);
+    
+    // Configure UART
+    USART2_CR1 &= ~(USART_CR1_M | USART_CR1_PCE);
+    USART2_CR2 &= ~(3 << 12);
+    
+    // Enable DMA for TX and RX
+    USART2_CR3 |= USART_CR3_DMAT | USART_CR3_DMAR;
+    
+    // Configure DMA1 Stream 6 for TX (Channel 4)
+    DMA1_S6CR &= ~DMA_SxCR_EN; // Disable stream
+    while(DMA1_S6CR & DMA_SxCR_EN); // Wait until disabled
+    
+    DMA1_S6PAR = (uint32_t)&USART2_DR;
+    DMA1_S6M0AR = (uint32_t)tx_buf;
+    DMA1_S6CR = (4 << 25) |           // Channel 4
+                (1 << 6) |            // Memory to peripheral
+                DMA_SxCR_MINC |       // Memory increment
+                DMA_SxCR_TCIE |       // Transfer complete interrupt
+                DMA_SxCR_TEIE |       // Transfer error interrupt
+                DMA_SxCR_DMEIE;       // Direct mode error interrupt
+    
+    // Configure DMA1 Stream 5 for RX (Channel 4)
+    DMA1_S5CR &= ~DMA_SxCR_EN;
+    while(DMA1_S5CR & DMA_SxCR_EN);
+    
+    DMA1_S5PAR = (uint32_t)&USART2_DR;
+    DMA1_S5M0AR = (uint32_t)rx_buf;
+    DMA1_S5NDTR = rx_size;
+    DMA1_S5CR = (4 << 25) |           // Channel 4
+                DMA_SxCR_CIRC |       // Circular mode
+                DMA_SxCR_MINC |       // Memory increment
+                DMA_SxCR_HTIE |       // Half transfer interrupt  
+                DMA_SxCR_TCIE |       // Transfer complete interrupt
+                DMA_SxCR_TEIE |       // Transfer error interrupt
+                DMA_SxCR_DMEIE |      // Direct mode error interrupt
+                DMA_SxCR_EN;          // Enable stream
+    
+    // Initialize tracking variables
+    dma_tx_done = false;
+    dma_rx_last_pos = 0;
+    dma_rx_overflow = false;
+    
+    // Enable DMA interrupts
+    NVIC_SetPriority(DMA1_Stream5_IRQn, 2);
+    NVIC_SetPriority(DMA1_Stream6_IRQn, 2);
+    NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+    NVIC_EnableIRQ(DMA1_Stream6_IRQn);
+    
+    // Enable transmitter and receiver
+    USART2_CR1 |= USART_CR1_TE | USART_CR1_RE;
+    
+    // Enable UART
+    USART2_CR1 |= USART_CR1_UE;
 }

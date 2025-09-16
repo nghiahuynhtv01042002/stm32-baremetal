@@ -4,8 +4,9 @@
 #include "gpio.h"
 #include "nvic.h"
 #include "uart.h"
-#define NORMAL
+// #define NORMAL
 // #define INTERRUPT
+#define DMA
 extern uint32_t SystemCoreClock;
 extern void GPIOConfig(void);
 extern void Config_MCO(void);
@@ -70,7 +71,6 @@ void UART_Normal_EchoTask(UART_Config_t* uart_cfg) {
     static uint8_t data_normal[UART_RX_BUFFER_SIZE];
     memset(data_normal,'0',UART_RX_BUFFER_SIZE);
     uint16_t len = UART_Normal_ReceiveData(data_normal, UART_RX_BUFFER_SIZE);
-    // length is meanlless in this implement
     if(len > 0) {
         UART_Normal_SendData("echo :",8);
         UART_Normal_SendData((const uint8_t *)data_normal,sizeof(data_normal));
@@ -87,7 +87,38 @@ void UART_Interrupt_EchoTask(UART_Config_t* uart_cfg) {
     }
 
 }
+uint16_t UART_DMA_ReceiveData(UART_Config_t* uart_cfg, uint8_t *app_buffer, uint16_t max_length) {
+    if (app_buffer == NULL || max_length == 0 ) return 0;
 
+    uint16_t current_ndtr = DMA1_S5NDTR;
+    uint16_t current_pos = uart_cfg->rx_buffer_size - current_ndtr;
+
+    uint16_t available_data;
+    if (current_pos >= dma_rx_last_pos) {
+        available_data = current_pos - dma_rx_last_pos;
+    } else {
+        available_data = (uart_cfg->rx_buffer_size - dma_rx_last_pos) + current_pos;
+        dma_rx_overflow = true;
+    }
+
+    uint16_t to_read = (available_data < max_length) ? available_data : max_length;
+    uint16_t count = 0;
+
+    while (count < to_read) {
+        app_buffer[count++] = uart_cfg->rx_buffer[dma_rx_last_pos];
+        dma_rx_last_pos = (dma_rx_last_pos + 1) % uart_cfg->rx_buffer_size;
+    }
+    return count;
+}
+
+void UART_DMA_EchoTask(UART_Config_t* uart_cfg) {
+    static uint8_t data_DMA[UART_RX_BUFFER_SIZE];
+    uint16_t len = UART_DMA_ReceiveData(uart_cfg,data_DMA, UART_RX_BUFFER_SIZE);
+    if (len > 0) {
+        UART_DMA_SendData("echo :",8);
+        UART_DMA_SendData((const uint8_t *)data_DMA,len);
+    } 
+}
 int main(void) {
     GPIOConfig();
     GPIOx_Set_MODER(&GPIOD_MODER, 13, 0x01);
@@ -127,4 +158,21 @@ int main(void) {
         delay_ms(1000);
     }
 #endif
+#ifdef DMA
+    // ===== DMA =====
+    uart_cfg.mode = UART_MODE_DMA;
+    uart_cfg.baudrate = 115200;
+    uart_cfg.tx_buffer = tx_buf;
+    uart_cfg.rx_buffer = rx_buf;
+    uart_cfg.tx_buffer_size = UART_TX_BUFFER_SIZE;
+    uart_cfg.rx_buffer_size = UART_RX_BUFFER_SIZE;
+
+    UART_Init(&uart_cfg);
+    UART_DMA_SendData("UART DMA Echo Test Start\r\n",27);
+    while(1) {
+        UART_DMA_EchoTask(&uart_cfg);
+        delay_ms(1000);
+    }
+#endif
+
 }
