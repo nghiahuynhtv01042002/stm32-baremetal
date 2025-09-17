@@ -1,5 +1,5 @@
 #include "sysclocks.h"
-
+#include "gpio.h"
 uint32_t SystemCoreClock = 96000000ul;
 
 void SystemClockConfig(void) {
@@ -56,7 +56,7 @@ void SystemClockConfig(void) {
 }
 /*
     Configure MCO pins for debugging system clock.
-    However, the logic analyzer failed to capture the signal correctly,
+    However, My logic analyzer failed to capture the signal correctly,
     so I added delay functions and monitored the clock via GPIO toggling.
 */
 
