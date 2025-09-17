@@ -76,3 +76,25 @@ uint16_t UART_DMA_ReceiveData(UART_Config_t* uart_cfg, uint8_t *app_buffer, uint
     }
     return count;
 }
+void UART_DMA_SendData(const uint8_t *data, uint16_t length) {
+    if (length == 0) return;
+    
+    while(DMA1_S6CR & DMA_SxCR_EN) ;
+    
+    // Clear transfer complete flag
+    DMA1_HIFCR |= (1 << 21); // Clear TCIF6
+    DMA1_HIFCR |= (1 << 16); // Clear FEIF6
+    DMA1_HIFCR |= (1 << 18); // Clear DMEIF6
+    DMA1_HIFCR |= (1 << 19); // Clear TEIF6
+    DMA1_HIFCR |= (1 << 20); // Clear HTIF6
+    
+    // Reset flag
+    dma_tx_done = false;
+    
+    // Configure new transfer
+    DMA1_S6M0AR = (uint32_t)data;
+    DMA1_S6NDTR = length;
+    
+    // Enable stream
+    DMA1_S6CR |= DMA_SxCR_EN;
+}
