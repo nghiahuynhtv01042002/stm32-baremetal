@@ -132,31 +132,26 @@ typedef struct {
 #define UART_TX_BUFFER_SIZE 256
 #define UART_RX_BUFFER_SIZE 256
 
-// Function prototypes
-void UART_Init(UART_Config_t *config);
-void UART_SendChar(char c);
-char UART_ReceiveChar(void);
-void UART_SendString(const char *str);
-void UART_SendData(const uint8_t *data, uint16_t length);
-uint16_t UART_ReceiveData(uint8_t *data, uint16_t max_length);
-
-// Mode specific functions
+// Initial funtion
 void UART_Normal_Init(uint32_t baudrate);
 void UART_DMA_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size);
 void UART_Interrupt_Init(uint32_t baudrate, uint8_t *tx_buf, uint8_t *rx_buf, uint16_t tx_size, uint16_t rx_size);
 
-// DMA specific functions
-void UART_DMA_SendData(const uint8_t *data, uint16_t length);
-uint16_t UART_DMA_GetRxCount(void);
-void UART_DMA_StartReceive(void);
-bool UART_DMA_IsTxComplete(void);
-void UART_DMA_WaitTxComplete(void);
-uint16_t UART_DMA_GetRxData(uint8_t *buffer, uint16_t max_length);
-void UART_DMA_ClearRxBuffer(void);
-bool UART_DMA_IsRxOverflow(void);
+// Normal specific functions
+extern void UART_Normal_SendData(const uint8_t *buffer, uint16_t length);
+extern uint16_t UART_Normal_ReceiveData(uint8_t *buffer, uint16_t max_length);
 
 // Interrupt specific functions
-void UART_INT_SendData(const uint8_t *data, uint16_t length);
+extern void UART_Interrupt_SendData(const uint8_t *buffer, uint16_t length);
+extern uint16_t UART_Interrupt_ReceiveData(uint8_t *buffer, uint16_t max_length);
+// DMA specific functions
+extern void UART_DMA_SendData(const uint8_t *data, uint16_t length);
+uint16_t UART_DMA_ReceiveData(UART_Config_t* uart_cfg, uint8_t *app_buffer, uint16_t max_length);
+
+// Abstract Function prototypes
+void UART_Init(UART_Config_t *config);
+void UART_SendData(const uint8_t *data, uint16_t length);
+uint16_t UART_ReceiveData(UART_Config_t* uart_cfg, uint8_t *data, uint16_t max_length);
 
 // Global variables
 extern volatile UART_Mode_t current_uart_mode;
